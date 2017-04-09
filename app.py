@@ -6,6 +6,7 @@ from werkzeug.utils import secure_filename
 import diff_match_patch
 import json
 import logging
+import os
 import uuid
 import werkzeug
 
@@ -54,21 +55,21 @@ def create():
     """
     # if the client sends a uuid of an existing file
     # return a 200 with the uuid
-    if 'file_uuid' in request.data:
-        file_uuid = secure_filename(request.data['file_uuid'])
+    if 'file_uuid' in request.form:
+        file_uuid = secure_filename(request.form['file_uuid'])
         if os.path.exists(os.path.join(app.config['UPLOAD_FOLDER'],
                                        file_uuid)):
             return jsonify({'file_uuid': file_uuid})
 
     # if the client does not send a uuid that exists
     # look for file data in the request
-    if 'file_contents' not in request.data:
+    if 'file_contents' not in request.form:
         abort(400, "need file contents")
 
-    filename = uuid.uuid4()
+    filename = uuid.uuid4().hex
     with open(os.path.join(app.config['UPLOAD_FOLDER'], filename),
               'w') as fdesc:
-        fdesc.write(request.data.file_contents)
+        fdesc.write(request.form['file_contents'])
     return jsonify({"file_uuid": filename})
 
 @socketio.on("join")
