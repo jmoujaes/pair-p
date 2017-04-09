@@ -85,7 +85,8 @@ def on_join(data):
                            room), 'r') as fdesc:
         file_contents = fdesc.read()
     socketio.emit("file_received",
-                  {"file_contents": file_contents},
+                  {"file_contents": file_contents,
+                   "file_uuid": room},
                   room=request.sid)
 
     # add the client to the room
