@@ -1,8 +1,10 @@
 from flask import Flask, render_template, redirect, request, \
                     jsonify, abort
-from flask_socketio import SocketIO
+from flask_socketio import SocketIO, join_room, leave_room
 from werkzeug.utils import secure_filename
 
+import diff_match_patch
+import json
 import logging
 import uuid
 import werkzeug
@@ -23,6 +25,8 @@ app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024 # 16MB
 app.logger.addHandler(fh)
 
 socketio = SocketIO(app)
+dmp = diff_match_patch.diff_match_patch()
+
 
 @app.errorhandler(werkzeug.exceptions.NotFound)
 def not_found(response):
@@ -37,7 +41,7 @@ def error(response):
 @app.route('/')
 def index():
     """ Show a welcome page. """
-    render_template("index.html")
+    return render_template("index.html")
 
 @app.route('/create', methods=['POST'])
 def create():
@@ -58,37 +62,79 @@ def create():
 
     # if the client does not send a uuid that exists
     # look for file data in the request
-    if 'file' not in request.files:
-        abort(400, "need file")
-    uploaded_file = request.files['file']
-    if uploaded_file.filename == "":
-        abort(400, "need filename")
+    if 'file_contents' not in request.data:
+        abort(400, "need file contents")
 
     filename = uuid.uuid4()
-    uploaded_file.save(os.path.join(app.config['UPLOAD_FOLDER'],
-                                    filename))
+    with open(os.path.join(app.config['UPLOAD_FOLDER'], filename),
+              'w') as fdesc:
+        fdesc.write(request.data.file_contents)
     return jsonify({"file_uuid": filename})
 
-@socketio.on("connect")
-def send_file():
+@socketio.on("join")
+def on_join(data):
     """
-    When a client connects to the websocket, send the
-    file to it as a stream of text.
+    When a client sends a 'join' event to the websocket,
+    send the client the file with the file_uuid they
+    sent, and then add them to the room.
     """
-    app.logger.info("Sending file to client as a stream.")
-    return
+    room = data['file_uuid']
+    app.logger.info("Sending file to client as a blob of text.")
+    # read file contents and send them to client
+    with open(os.path.join(app.config['UPLOAD_FOLDER'],
+                           room), 'r') as fdesc:
+        file_contents = fdesc.read()
+    socketio.emit("file_received",
+                  {"file_contents": file_contents},
+                  room=request.sid)
+
+    # add the client to the room
+    app.logger.info("Adding the client to the room.")
+    join_room(room)
+    send("New player.", room=room)
+
+
+
+@socketio.on("leave")
+def on_leave(data):
+    """
+    When a client requests to leave, we remove them from
+    the room.
+    """
+    room = data['file_uuid']
+    leave_room(room)
+    send("A player left the room.", room=room)
 
 
 @socketio.on("diff")
 def patch_file(json):
     """
-    Patch the specified file with the given diff.
-    Broadcast the diff to all connected clients.
+    Patch the specified file with the given diffs.
+    If successful, broadcast the diffs to the room.
+    Expects a json object with keys 'file_uuid' and
+    'diffs' which is an array of diffs.
     """
-    app.logger.info("Received object: %s" % json)
-    # TODO patch the file
-    # TODO broadcast the diff or patch
-    return
+    app.logger.debug("Received object: %s" % json)
+    room = json['file_uuid']
+    diffs = json['diffs']
+
+    # make patches from the given diffs
+    patches = dmp.patch_make(diffs)
+
+    # read the file contents in
+    with open(os.path.join(app.config['UPLOAD_FOLDER'],
+                           room), 'r') as fdesc:
+        file_contents = fdesc.read()
+
+    # patch the text
+    patched_text = dmp.patch_apply(patches, file_contents)
+
+    with open(os.path.join(app.config['UPLOAD_FOLDER'],
+                           room), 'w') as fdesc:
+        fdesc.write(patched_text)
+
+    # broadcast the diff to everyone in the room
+    socketio.emit('diff', diffs, room=room, skip_sid=request.sid)
 
 
 if __name__ == '__main__':
