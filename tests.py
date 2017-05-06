@@ -64,4 +64,42 @@ class Tests(fake_filesystem_unittest.TestCase):
 
         self.assertEqual(resp.status_code, 400)
 
+    def test_on_join_event(self):
+        """
+        Assert that the server receives a "file_uuid"
+        when a client joins.
+        Assert that the server emits a "file_received"
+        event with the contents of the file with the
+        name "file_uuid".
+        Assert that the server adds the client to the
+        room with the value of "file_uuid".
+        """
+        # create file that the client is requesting
+        fileuuid = "1a2b3c4d5e6f7890"
+        filedata = "Hello\nWorld\n!!!"
+        with open(os.path.join(app.config["UPLOAD_FOLDER"],
+                               fileuuid),
+                  "w") as fdesc:
+            fdesc.write(filedata)
 
+        # client sends the uuid of the
+        # file it wants to read/room it wants to join
+        # they're the same thing
+        self.ws_client.emit("join", {"file_uuid":fileuuid})
+
+        # messages/events the client receives from the server
+        received = self.ws_client.get_received()
+        self.assertEqual(len(received), 2)
+
+        first = received[0]
+        first_name = first['name']
+        first_args = first['args']
+        self.assertEqual(first_name, "file_received")
+        self.assertEqual(first_args[0]['file_contents'], filedata)
+        self.assertEqual(first_args[0]['file_uuid'], fileuuid)
+
+        second = received[1]
+        second_name = second['name']
+        second_args = second['args']
+        self.assertEqual(second_name, "message")
+        self.assertEqual(second_args, "New player.")

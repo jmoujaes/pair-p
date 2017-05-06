@@ -39,7 +39,9 @@ cd ../../
 python -m compileall *.py
 
 # TODO pylint
-# TODO unittests
+
+# unit tests
+python -m unittest tests
 
 # success
 : "*** BUILD SUCCESSFUL ***"
