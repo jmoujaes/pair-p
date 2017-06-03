@@ -1,0 +1,8 @@
+[run]
+omit = 
+    # don't include the following
+    # in test coverage results
+    build/*
+    tests.py
+    diff_match_patch.py
+

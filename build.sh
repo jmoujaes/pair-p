@@ -41,7 +41,10 @@ python -m compileall *.py
 # TODO pylint
 
 # unit tests
-python -m unittest tests
+nosetests --with-coverage --cover-erase --cover-html --cover-branches
+
+# html coverage report
+coverage html
 
 # success
 : "*** BUILD SUCCESSFUL ***"
