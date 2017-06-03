@@ -6,6 +6,8 @@ import json
 import os
 import uuid
 
+from unittest import mock
+
 class Tests(fake_filesystem_unittest.TestCase):
 
     def setUp(self):
@@ -103,3 +105,43 @@ class Tests(fake_filesystem_unittest.TestCase):
         second_args = second['args']
         self.assertEqual(second_name, "message")
         self.assertEqual(second_args, "New player.")
+
+    @mock.patch("app.leave_room")
+    def test_on_leave_event(self, mock_leave):
+        """
+        Assert that the server receives a 'file_uuid'
+        when the client emits a leave event.
+        Assert that the server removes the client from
+        the room.
+        Assert that the server tells the room that
+        a player left.
+        """
+        # create file that the client is requesting
+        fileuuid = "1a2b3c4d5e6f7890"
+        filedata = "Hello\nWorld\n!!!"
+        with open(os.path.join(app.config["UPLOAD_FOLDER"],
+                               fileuuid),
+                  "w") as fdesc:
+            fdesc.write(filedata)
+
+        # two clients join the room
+        client2 = socketio.test_client(app)
+        self.ws_client.emit("join", {"file_uuid":fileuuid})
+        client2.emit("join", {"file_uuid":fileuuid})
+
+        # client1 sends the uuid of the
+        # room it wants to leave
+        self.ws_client.emit("leave", {"file_uuid": "1a2b3c4d5e6f7890"})
+
+        # assert that client is removed from room
+        self.assertTrue(mock_leave.called)
+
+        # messages/events the client receives from the server
+        received = client2.get_received()
+        self.assertEqual(len(received), 3)
+        message_after_leave = received[2]
+        name = message_after_leave['name']
+        args = message_after_leave['args']
+        self.assertEqual(name, "message")
+        self.assertEqual(args, "A player left the room.")
+

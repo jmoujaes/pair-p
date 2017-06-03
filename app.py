@@ -87,8 +87,6 @@ def on_join(data):
     join_room(room)
     send("New player.", room=room)
 
-
-
 @socketio.on("leave")
 def on_leave(data):
     """
