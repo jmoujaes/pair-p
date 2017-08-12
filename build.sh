@@ -39,7 +39,12 @@ cd ../../
 python -m compileall *.py
 
 # TODO pylint
-# TODO unittests
+
+# unit tests
+nosetests --with-coverage --cover-erase --cover-html --cover-branches
+
+# html coverage report
+coverage html
 
 # success
 : "*** BUILD SUCCESSFUL ***"

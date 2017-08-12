@@ -1,6 +1,6 @@
 from flask import Flask, render_template, redirect, request, \
                     jsonify, abort
-from flask_socketio import SocketIO, join_room, leave_room
+from flask_socketio import SocketIO, join_room, leave_room, send
 from werkzeug.utils import secure_filename
 
 import diff_match_patch
@@ -86,8 +86,6 @@ def on_join(data):
     app.logger.info("Adding the client to the room.")
     join_room(room)
     send("New player.", room=room)
-
-
 
 @socketio.on("leave")
 def on_leave(data):
